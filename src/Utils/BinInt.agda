@@ -1,3 +1,4 @@
+-- | run-time integers packed with their compile-time binary representation
 module Utils.BinInt where
 
 open import Haskell.Prelude
@@ -17,12 +18,11 @@ record BinInt : Set where
     @0 bin : Bin
     @0 inv : int as bin
 open BinInt public
-{-# COMPILE AGDA2HS BinInt newtype #-}
-
+{-# COMPILE AGDA2HS BinInt unboxed #-}
 
 z : BinInt
 z = BI 0 Z (Z itsTrue)
-{-# COMPILE AGDA2HS z #-}
+{-# COMPILE AGDA2HS z inline #-}
 
 -- 2*[_]+1
 i : BinInt → BinInt
@@ -31,7 +31,7 @@ i (BI i b i≈b) = BI
   (I b)
   (I (testBitsetBit (shiftL i 1))
      (subst (_as b) (sym (shiftsetshift i)) i≈b))
-{-# COMPILE AGDA2HS i #-}
+{-# COMPILE AGDA2HS i inline #-}
 
 o' : (bi : BinInt) → @0 {{ IsFalse (int bi == 0) }} → BinInt
 o' (BI i b i≈b) {{ i/=0 }} =
@@ -40,6 +40,7 @@ o' (BI i b i≈b) {{ i/=0 }} =
      (O (testBitShiftL i)
         (neq0ShiftL i i/=0)
         (subst (_as b) (sym (shiftRshiftL i)) i≈b))
+{-# COMPILE AGDA2HS o' inline #-}
 
 -- 2*[_]
 o : BinInt → BinInt
@@ -59,15 +60,13 @@ o (BI i b i≈b) =
            (neq0ShiftL i (isFalse i/=0))
            (subst (_as b) (sym (shiftRshiftL i)) i≈b)
      )
-{-# COMPILE AGDA2HS o #-}
+{-# COMPILE AGDA2HS o inline #-}
 
 data BinView : @0 BinInt → Set where
   VZ : BinView z
   VO : (bi : BinInt) → {{ @0 _ : IsFalse (int bi == 0) }} → BinView (o' bi)
   VI : (bi : BinInt) → BinView (i bi)
 {-# COMPILE AGDA2HS BinView #-}
-
-postulate anything : a
 
 record IsI (bi : BinInt) : Set where
   constructor MkIsI
@@ -111,8 +110,8 @@ record IsO (bi : BinInt) (@0 i/=0 : IsFalse (int bi == 0))
 
 
 @0 isO
-  : (bi : BinInt) (@0 i/=0 : IsFalse (int bi == 0))
-                  (@0 bit0 : IsFalse (testBit (int bi) 0))
+  : (bi : BinInt) (i/=0 : IsFalse (int bi == 0))
+                  (bit0 : IsFalse (testBit (int bi) 0))
   → IsO bi i/=0 bit0
 isO (BI i .(Z  ) (Z x        )) i/=0 bit0 = schrodinger x i/=0
 isO (BI i .(I _) (I x p      )) i/=0 bit0 = schrodinger x bit0 
@@ -125,11 +124,6 @@ isO (BI i .(O b) (O {b} t f p)) i/=0 bit0 = subst₂
     (λ t' f' i≈b → MkIsO {a' = p}
       (cong (λ i → shiftR i 1) (shiftLshiftR1 i t)) refl refl (irrAs _ _))
     f t p)
-
-
-let0 : {b : Set} (@0 x : a) (f : @0 a → b) → b
-let0 x f = f x
-{-# COMPILE AGDA2HS let0 transparent #-}
 
 view : ∀ bi → BinView bi
 view (BI i b i≈b) =

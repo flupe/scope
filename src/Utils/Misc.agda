@@ -11,22 +11,22 @@ subst
 subst f refl x = x
 {-# COMPILE AGDA2HS subst transparent #-}
 
-@0 schrodinger : ∀ {b} → IsTrue b → IsFalse b → a
+schrodinger : ∀ {b} → IsTrue b → IsFalse b → a
 schrodinger itsTrue ()
 
-@0 isTrue : ∀ {b} → b ≡ True → IsTrue b
+isTrue : ∀ {b} → b ≡ True → IsTrue b
 isTrue refl = IsTrue.itsTrue
 
 @0 isFalse : ∀ {b} → b ≡ False → IsFalse b
 isFalse refl = IsFalse.itsFalse
 
-@0 irrIsTrue : ∀ {b} (p q : IsTrue b) → p ≡ q
+irrIsTrue : ∀ {b} (p q : IsTrue b) → p ≡ q
 irrIsTrue itsTrue itsTrue = refl
 
-@0 irrIsFalse : ∀ {b} (p q : IsFalse b) → p ≡ q
+irrIsFalse : ∀ {b} (p q : IsFalse b) → p ≡ q
 irrIsFalse itsFalse itsFalse = refl
 
-@0 trueIs : ∀ {b} → IsTrue b → b ≡ True
+trueIs : ∀ {b} → IsTrue b → b ≡ True
 trueIs itsTrue = refl
 
 @0 cong₃ : {b : Set} (f : a → b → c → d) {x y : a} {z w : b} {u v : c}
@@ -42,3 +42,7 @@ subst₂ : {@0 a b : Set} (@0 p : @0 a → @0 b → Set) {@0 x y : a} {@0 z w : 
        → @0 x ≡ y → @0 z ≡ w → p x z → p y w
 subst₂ p refl refl x = x
 {-# COMPILE AGDA2HS subst₂ transparent #-}
+
+let0 : {b : Set} (@0 x : a) (f : @0 a → b) → b
+let0 x f = f x
+{-# COMPILE AGDA2HS let0 transparent #-}

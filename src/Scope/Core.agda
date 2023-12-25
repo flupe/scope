@@ -8,23 +8,38 @@ open import Haskell.Law.Monoid.Def using (IsLawfulMonoid)
 open import Haskell.Law.Monoid.List using (iLawfulMonoidList)
 open import Haskell.Extra.Erase
 open import Haskell.Extra.Dec as Dec
+open import Haskell.Extra.Refinement
 
 open import Utils.Tactics
+open import Utils.BinInt
+open import Utils.Trees
 import Utils.List as List
 
 private variable
   name : Set
 
+record Scope (@0 name) : Set where
+  constructor MkScope
+  field
+    size     : BinInt
+    @0 names : RAList name size
+open Scope public
+{-# COMPILE AGDA2HS Scope newtype #-}
+
 opaque
-  Scope : (@0 name : Set) → Set
-  Scope name = List (Erase name)
-  {-# COMPILE AGDA2HS Scope #-}
+  unfolding RAList
+  singleton : @0 name → Scope name
+  singleton x = MkScope {!!} (RALI (Leaf x) RALZ)
+  {-# COMPILE AGDA2HS singleton #-}
+
+  syntax singleton x = [ x ]
+
+{-
 
   singleton : @0 name → Scope name
   singleton x = Erased x ∷ []
   {-# COMPILE AGDA2HS singleton #-}
 
-  syntax singleton x = [ x ]
 
   instance
     iSemigroupScope : Semigroup (Scope name)
@@ -53,3 +68,5 @@ opaque
     → Rezz _ α → Rezz _ (bind x α)
   rezzBind = rezzCong2 _∷_ rezzErase
   {-# COMPILE AGDA2HS rezzBind #-}
+
+-}

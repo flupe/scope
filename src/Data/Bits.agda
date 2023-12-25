@@ -46,8 +46,10 @@ postulate
                  → shiftL (shiftR i 1) 1 ≡ i
   shiftsetshift  : (i : Integer) → shiftR (setBit (shiftL i 1) 0) 1 ≡ i
   testBit0       : {i : Integer} → IsTrue (i == 0) → IsFalse (testBit i 0)
+  testBit1       : IsTrue (testBit {a = Integer} 1 0)
   testBitneq0    : {i : Integer} → IsTrue (testBit i 0) → IsFalse (i == 0)
   shiftR0        : ∀ {n} → shiftR 0 n ≡ 0
+  shiftR1        : ∀ {n} → shiftR 1 n ≡ 0
   setBitshiftLshiftR
     : {i : Integer}
     → IsTrue (testBit i 0) 
