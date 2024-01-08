@@ -14,6 +14,8 @@ private variable
   @0 x : name
   @0 α α₁ α₂ β β₁ β₂ γ δ ε : Scope name
 
+
+{-
 -- This datatype has to use the actual [] and _∷_ constructors instead of
 -- ∅ and _◃_, because otherwise the erased constructor arguments are not
 -- recognized as being forced (see https://github.com/agda/agda/issues/6744).
@@ -200,3 +202,5 @@ opaque
   ∅-⋈-injective EmptyL = refl
   ∅-⋈-injective EmptyR = refl
   ∅-⋈-injective (ConsR x p) rewrite ∅-⋈-injective p = refl
+
+-}

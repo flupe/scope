@@ -24,7 +24,6 @@ z : BinInt
 z = BI 0 Z (Z itsTrue)
 {-# COMPILE AGDA2HS z inline #-}
 
--- 2*[_]+1
 i : BinInt → BinInt
 i (BI i b i≈b) = BI
   (setBit (shiftL i 1) 0)
@@ -42,7 +41,6 @@ o' (BI i b i≈b) {{ i/=0 }} =
         (subst (_as b) (sym (shiftRshiftL i)) i≈b))
 {-# COMPILE AGDA2HS o' inline #-}
 
--- 2*[_]
 o : BinInt → BinInt
 o (BI i b i≈b) =
   BI (shiftL i 1)
@@ -105,7 +103,8 @@ record IsO (bi : BinInt) (@0 i/=0 : IsFalse (int bi == 0))
     aeq  : inv bi
          ≡ subst₂ (λ i b → i as b) ieq2 beq
                   (O (testBitShiftL i')
-                     (neq0ShiftL i' (subst (λ i → IsFalse (i == 0)) ieq (neq0ShiftR (int bi) i/=0 bit0)))
+                     (neq0ShiftL i' (subst (λ i → IsFalse (i == 0)) ieq
+                                           (neq0ShiftR (int bi) i/=0 bit0)))
                      (subst (_as b') (sym (shiftRshiftL i')) a'))
 
 
@@ -160,7 +159,7 @@ view (BI i b i≈b) =
         (IsO.ieq2 is) (IsO.beq is)
         (subst
           (λ i → (@0 i≈b : i as O (IsO.b' is)) → BinView (BI i _ i≈b))
-          (cong (λ i₁ → shiftL i₁ 1) (IsO.ieq is))
+          (cong (λ i → shiftL i 1) (IsO.ieq is))
           λ i≈b → subst (λ i≈b → BinView (BI _ _ i≈b))
             (irrAs (O (testBitShiftL _)
                       (neq0ShiftL _ (neq0ShiftR i (isFalse i/=0) (isFalse nbit)))
@@ -170,3 +169,18 @@ view (BI i b i≈b) =
                 ⦃ neq0ShiftR i (isFalse i/=0) (isFalse nbit) ⦄))
         i≈b
 {-# COMPILE AGDA2HS view #-}
+
+postulate
+  -- TODO(flupe)
+  @0 baddAs
+       : ∀ {x bx} {y by}
+       → x as bx
+       → y as by
+       → (x + y) as badd bx by
+
+bintadd : BinInt → BinInt → BinInt
+bintadd bx by =
+  BI (bx .int + by .int)
+     (badd (bx .bin) (by .bin))
+     (baddAs (bx .inv) (by .inv))
+{-# COMPILE AGDA2HS bintadd inline #-}

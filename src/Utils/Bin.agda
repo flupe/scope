@@ -44,11 +44,13 @@ irrAs (I t1 p   ) (I t2 q   ) = cong₂ I (irrIsTrue t1 t2) (irrAs p q)
 irrAs (O f1 z1 p) (O f2 z2 q) = cong₃ O (irrIsFalse f1 f2) (irrIsFalse z1 z2) (irrAs p q)
 
 
+-- binary addition and whatnot
+------------------------------
+
 bsucc : Bin → Bin
 bsucc Z     = I Z
 bsucc (O b) = I b
 bsucc (I b) = O (bsucc b)
-
 
 badd baddcarry : Bin → Bin → Bin
 
@@ -57,10 +59,31 @@ badd (x  ) (Z  ) = x
 badd (O x) (O y) = O (badd x y)
 badd (O x) (I y) = I (badd x y)
 badd (I x) (O y) = I (badd x y)
-badd (I x) (I y) = baddcarry x y
+badd (I x) (I y) = O (baddcarry x y)
+
+data @0 Badd  : @0 Bin → @0 Bin → @0 Bin → Set
+data @0 BaddC : @0 Bin → @0 Bin → @0 Bin → Set
+
+-- inductive graph of badd
+data Badd where
+  BZ+ : ∀ {@0 b}     → Badd Z b b
+  B+Z : ∀ {@0 b}     → Badd b Z b
+  O+O : ∀ {@0 x y r} → Badd  x y r → Badd (O x) (O y) (O r)
+  O+I : ∀ {@0 x y r} → Badd  x y r → Badd (O x) (I y) (I r)
+  I+O : ∀ {@0 x y r} → Badd  x y r → Badd (I x) (O y) (I r)
+  I+I : ∀ {@0 x y r} → BaddC x y r → Badd (I x) (I y) (I r)
+
+-- inductive graph of baddcarry
+data BaddC where
+  BZ+ : ∀ {@0 b}     → BaddC Z b (bsucc b)
+  B+Z : ∀ {@0 b}     → BaddC b Z (bsucc b)
+  O+O : ∀ {@0 x y r} → Badd  x y r → BaddC (O x) (O y) (I r)
+  O+I : ∀ {@0 x y r} → BaddC x y r → BaddC (O x) (I y) (O r)
+  I+O : ∀ {@0 x y r} → BaddC x y r → BaddC (I x) (O y) (O r)
+  I+I : ∀ {@0 x y r} → BaddC x y r → BaddC (I x) (I y) (I r)
 
 +Z : ∀ b → badd b Z ≡ b
-+Z Z = refl
++Z Z     = refl
 +Z (O b) = refl
 +Z (I b) = refl
 
@@ -71,7 +94,9 @@ baddcarry (O x) (I y) = O (baddcarry x y)
 baddcarry (I x) (O y) = O (baddcarry x y)
 baddcarry (I x) (I y) = I (baddcarry x y)
 
-postulate @0 bsuccAs : ∀ {i b} → i as b → succ i as bsucc b
+postulate
+  @0 bsuccAs : ∀ {i b} → i as b → succ i as bsucc b
+
 -- bsuccAs {i = i} (Z p)
 --   rewrite equality i 0 (trueIs {b = i == 0} p)
 --         = I testBit1 (subst (_as Z) (sym shiftR1) (Z itsTrue))
@@ -83,11 +108,6 @@ postulate @0 bsuccAs : ∀ {i b} → i as b → succ i as bsucc b
 
 open LawfulNum iIntegerLawfulNum
 
-@0 baddAs
-  : ∀ {x bx} {y by}
-  → x as bx
-  → y as by
-  → (x + y) as badd bx by
 baddAs {x} {y = y} (Z x==0) yas
   rewrite equality x 0 (trueIs x==0)
         | +-identityₗ y

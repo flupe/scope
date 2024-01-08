@@ -1,22 +1,42 @@
 module Scope.Sub where
 
 open import Haskell.Prelude
-open import Haskell.Extra.Erase
+open import Haskell.Extra.Refinement
 
 open import Scope.Core
-open import Scope.Split
+open import Utils.Bin
+open import Utils.BinInt
+open import Utils.RAList
+open import Utils.Misc
+-- open import Scope.Split
 
 private variable
   name : Set
   @0 x y : name
   @0 α α₁ α₂ β β₁ β₂ γ : Scope name
 
-opaque
-  Sub : (@0 α β  : Scope name) → Set
-  Sub α β = Σ0 _ (λ γ → α ⋈ γ ≡ β)
-  {-# COMPILE AGDA2HS Sub #-}
+record Sub (@0 α β : Scope name) : Set where
+  constructor MkSub
+  field
+    sub     : Scope name
+    @0 invs : badd (α .size .bin) (sub .size .bin) ≡ (β .size .bin)
+    @0 invn : subst (λ b → (xs : RAList' name b 0) → Set) invs
+                    (concatRAList (α .names) (sub .names) ≡_)
+                    (β .names)
+open Sub public
+{-# COMPILE AGDA2HS Sub newtype #-}
 
-  syntax Sub α β = α ⊆ β
+syntax Sub α β = α ⊆ β
+
+postulate admit : a
+
+subTrans : α ⊆ β → β ⊆ γ → α ⊆ γ
+subTrans s1 s2 =
+  MkSub (concatScope (s1 .sub) (s2 .sub))
+        admit
+        admit
+{-# COMPILE AGDA2HS subTrans #-}
+{-
 
   subTrans : α ⊆ β → β ⊆ γ → α ⊆ γ
   subTrans < p > < q > =
@@ -88,3 +108,5 @@ opaque
     let < q , _ > = splitAssoc (splitComm (splitRefl r)) p
     in  < q >
   {-# COMPILE AGDA2HS joinSubRight #-}
+
+-}

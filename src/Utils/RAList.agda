@@ -7,54 +7,58 @@ open import Haskell.Extra.Refinement
 
 open import Utils.Bin
 open import Utils.BinInt
-open import Data.Bits
+open import Utils.Tree
+-- open import Data.Bits
 
-private
-  variable @0 n : Nat
-
-  data Tree (a : Set) : @0 Nat → Set where
-    Leaf : a → Tree a 0
-    Node : ∀ {@0 n} (l r : Tree a n) → Tree a (1 + n)
-  {-# COMPILE AGDA2HS Tree #-}
-
-  data Length : Bin → Nat → Set where
-    instance
-      LZ : Length Z zero
-      LO : ∀ {b n} → {{ Length b n }} → Length (O b) (suc n)
-      LI : ∀ {b n} → {{ Length b n }} → Length (I b) (suc n)
-
-  lookupTree : (path : BinInt) → @0 {{ Length (bin path) n }} → Tree a n → a
-  lookupTree _    (Leaf x  ) = x
-  lookupTree path {{ z }} (Node l r) =
-    case view path of λ where
-      (VO pl) → lookupTree pl {{ olength pl z }} l
-      (VI pr) → lookupTree pr {{ ilength pr z }} r
-    where
-      @0 ilength : ∀ {n} (p : BinInt) → Length (bin (i p)) (suc n) → Length (bin p) n
-      ilength p LI = it
-  
-      @0 olength : ∀ {n} (p : BinInt) {{_ : IsFalse (int p == 0) }}
-                 → Length (bin (o' p)) (suc n) → Length (bin p) n
-      olength p LO = it
-  {-# COMPILE AGDA2HS lookupTree #-}
 
 data RAList' (a : Set) : @0 Bin → @0 Nat → Set where
-  RALZ : ∀ {@0 n}                                    → RAList' a (Z  ) n
-  RALO : ∀ {@0 n b}            → RAList' a b (suc n) → RAList' a (O b) n
-  RALI : ∀ {@0 n b} → Tree a n → RAList' a b (suc n) → RAList' a (I b) n
+  RALZ : ∀ {@0 n}                                       → RAList' a (Z  ) n
+  RALO : ∀ {@0 n b}               → RAList' a b (suc n) → RAList' a (O b) n
+  RALI : ∀ {@0 n b} → BinTree a n → RAList' a b (suc n) → RAList' a (I b) n
 {-# COMPILE AGDA2HS RAList' #-}
 
-opaque
-  RAList : Set → @0 BinInt → Set
-  RAList a bi = RAList' a (bin bi) 0
-  {-# COMPILE AGDA2HS RAList #-}
+insertBinTree : ∀ {a} {@0 b n} → BinTree a n → RAList' a b n → RAList' a (bsucc b) n
+insertBinTree t RALZ        = RALI t RALZ
+insertBinTree t (RALO xs)   = RALI t xs
+insertBinTree t (RALI x xs) = RALO (insertBinTree (Node x t) xs)
+{-# COMPILE AGDA2HS insertBinTree #-}
 
-record Path (@0 b : Bin) : Set where
+concatRAList  : ∀ {a} {@0 b₁ b₂ n} → RAList' a b₁ n → RAList' a b₂ n → RAList' a (badd b₁ b₂) n
+concatRAList' : ∀ {a} {@0 b₁ b₂ n} → RAList' a b₁ n → RAList' a b₂ n → BinTree a n →  RAList' a (baddcarry b₁ b₂) n
+
+concatRAList (RALZ)      ys          = ys
+concatRAList (RALO xs  ) (RALZ)      = RALO xs
+concatRAList (RALO xs  ) (RALO ys)   = RALO (concatRAList xs ys)
+concatRAList (RALO xs  ) (RALI x ys) = RALI x (concatRAList xs ys)
+concatRAList (RALI x xs) (RALZ)      = RALI x xs
+concatRAList (RALI x xs) (RALO ys)   = RALI x (concatRAList xs ys)
+concatRAList (RALI x xs) (RALI y ys) = RALO (concatRAList' xs ys (Node x y))
+{-# COMPILE AGDA2HS concatRAList #-}
+
+-- concat with carry
+concatRAList' RALZ        ys          t = insertBinTree t ys
+concatRAList' (RALO x)    RALZ        t = insertBinTree t (RALO x)
+concatRAList' (RALI x xs) RALZ        t = insertBinTree t (RALI x xs)
+concatRAList' (RALO xs)   (RALO ys)   t = RALI t (concatRAList xs ys)
+concatRAList' (RALO xs)   (RALI y ys) t = RALO (concatRAList' xs ys (Node t y))
+concatRAList' (RALI x xs) (RALO ys)   t = RALO (concatRAList' xs ys (Node x t))
+concatRAList' (RALI x xs) (RALI y ys) t = RALI t (concatRAList' xs ys (Node x y))
+{-# COMPILE AGDA2HS concatRAList' #-}
+
+RAList : Set → @0 Bin → Set
+RAList a bi = RAList' a bi 0
+{-# COMPILE AGDA2HS RAList #-}
+
+record RALIndex' (@0 b : Bin) (@0 offset) : Set where
   constructor MkPath
   field
     index       : BinInt
     path        : BinInt
-    @0 {offset} : Nat
-    @0 deep     : Length (bin path) offset
-open Path public
-{-# COMPILE AGDA2HS Path #-}
+    @0 deep     : TreePath offset (bin path)
+open RALIndex' public
+{-# COMPILE AGDA2HS RALIndex' #-}
+
+RALIndex : @0 Bin → Set
+RALIndex bi = RALIndex' bi 0
+
+{-# COMPILE AGDA2HS RALIndex #-}

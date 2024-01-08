@@ -12,8 +12,10 @@ open import Haskell.Extra.Refinement
 
 open import Utils.Tactics
 open import Utils.BinInt
-open import Utils.Trees
-import Utils.List as List
+
+open import Utils.RAList
+open import Utils.Tree
+open import Data.Bits
 
 private variable
   name : Set
@@ -21,52 +23,61 @@ private variable
 record Scope (@0 name) : Set where
   constructor MkScope
   field
+    -- a scope has a given size
     size     : BinInt
-    @0 names : RAList name size
+    -- an as many names (erased) as its size
+    @0 names : RAList name (size .bin)
 open Scope public
 {-# COMPILE AGDA2HS Scope newtype #-}
 
 opaque
-  unfolding RAList
+
   singleton : @0 name → Scope name
-  singleton x = MkScope {!!} (RALI (Leaf x) RALZ)
+  singleton x = MkScope (i z) (RALI (Leaf x) RALZ)
   {-# COMPILE AGDA2HS singleton #-}
 
   syntax singleton x = [ x ]
 
-{-
+  empty : Scope name
+  empty = MkScope z RALZ
+  {-# COMPILE AGDA2HS empty inline #-}
 
-  singleton : @0 name → Scope name
-  singleton x = Erased x ∷ []
-  {-# COMPILE AGDA2HS singleton #-}
-
+  concatScope : Scope name → Scope name → Scope name
+  concatScope s1 s2 =
+    MkScope
+      (bintadd (s1 .size) (s2 .size))
+      (concatRAList (s1 .names) (s2 .names))
+  {-# COMPILE AGDA2HS concatScope inline #-}
 
   instance
     iSemigroupScope : Semigroup (Scope name)
-    iSemigroupScope = iSemigroupList
+    iSemigroupScope ._<>_ = concatScope
+
+    {-# COMPILE AGDA2HS iSemigroupScope #-}
 
     iMonoidScope : Monoid (Scope name)
-    iMonoidScope = iMonoidList
+    iMonoidScope = record { DefaultMonoid (λ { .DefaultMonoid.mempty → empty }) }
+
+    {-# COMPILE AGDA2HS iMonoidScope #-}
+
+  bind : @0 name → Scope name → Scope name
+  bind x α = singleton x <> α
+  {-# COMPILE AGDA2HS bind #-}
+
+  syntax bind x α = x ◃ α
+
+  rezzBind
+    : {@0 α : Scope name} {@0 x : name}
+    → Rezz _ α → Rezz _ (bind x α)
+  rezzBind (rezz r) = rezz (bind _ r)
+  {-# COMPILE AGDA2HS rezzBind #-}
+
+{-
 
     iLawfulSemigroupScope : IsLawfulSemigroup (Scope name)
     iLawfulSemigroupScope = iLawfulSemigroupList
 
     iLawfulMonoidScope : IsLawfulMonoid (Scope name)
     iLawfulMonoidScope = iLawfulMonoidList
-
-bind : @0 name → Scope name → Scope name
-bind x α = singleton x <> α
-{-# COMPILE AGDA2HS bind #-}
-
-syntax bind x α = x ◃ α
-
-opaque
-  unfolding Scope
-
-  rezzBind
-    : {@0 α : Scope name} {@0 x : name}
-    → Rezz _ α → Rezz _ (bind x α)
-  rezzBind = rezzCong2 _∷_ rezzErase
-  {-# COMPILE AGDA2HS rezzBind #-}
 
 -}
