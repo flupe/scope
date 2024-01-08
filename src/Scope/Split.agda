@@ -3,6 +3,8 @@ module Scope.Split where
 open import Haskell.Prelude
 open import Haskell.Extra.Dec
 open import Haskell.Extra.Erase
+open import Haskell.Extra.Refinement
+open import Haskell.Law.Equality using (cong)
 
 open import Scope.Core
 
