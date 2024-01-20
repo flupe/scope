@@ -96,45 +96,28 @@ data NatView : @0 BinNat → Set where
 
 private
 
-  inspectZ : ∀ {@0 i n} → @0 i ≡ 0 → (@0 i≈n : i as n) → NatView (BN i n i≈n)
-  inspectZ i≡0 i≈n = subst₂ (λ i n → (@0 i≈n : i as n) → NatView (BN i n i≈n))
-    (sym i≡0)
-    (uniqAsNat (subst (_as 0) (sym i≡0) (Z itsTrue)) i≈n)
-    (λ i≈n → subst (λ i≈n → NatView (BN _ _ i≈n)) (irrAs (Z itsTrue) i≈n) Z)
-    i≈n
-  {-# COMPILE AGDA2HS inspectZ inline #-}
-
   record @0 IsS (bn : BinNat) : Set where
     constructor MkIsS
-    field
-      {n}   : Nat
-      i≈n   : pred (int bn) as n
-      suc≡n : suc n ≡ nat bn
+    field {n'}     : Nat
+          predi≈n' : pred (int bn) as n'
+          sucn'    : suc n' ≡ nat bn
 
   @0 isS : ∀ {i n} → (i == 0) ≡ False → (@0 i≈n : i as n) → IsS (BN i n i≈n)
-  isS {i} {0    } i/=0 (Z i==0     ) = schrodinger i==0 (isFalse i/=0)
-  isS {i} {suc n} i/=0 (S {n} i>0 p) =
-    subst (λ i → (@0 i>0 : IsTrue (i > 0))
-               → (@0 i≈n : pred i as n)
-               → IsS (BN i (suc n) (S i>0 i≈n)))
-      (succpred i) (λ i>0 i≈n → MkIsS i≈n refl)
-      i>0 p
-
-  inspectS : ∀ {i} {@0 n} → @0 (i == 0) ≡ False → (@0 i≈n : i as n) → NatView (BN i n i≈n)
-  inspectS {i} {n} i/=0 i≈n = let0 (isS i/=0 i≈n) λ is →
-    subst₂ (λ i n → (@0 i≈n : i as n) → NatView (BN i n i≈n))
-      (succpred i) (is .IsS.suc≡n)
-      (λ i≈n → subst (λ i≈n → NatView (BN _ _ i≈n))
-                     (irrAs _ _)
-                     (S (BN (pred i) (IsS.n is) (IsS.i≈n is))))
-      i≈n
-  {-# COMPILE AGDA2HS inspectS inline #-}
+  isS i/=0 (Z i==0) = schrodinger i==0 (isFalse i/=0)
+  isS _    (S _ p ) = MkIsS p refl
 
 inspect : ∀ bn → NatView bn
 inspect (BN i n i≈n) =
-  if i == 0
-  then (λ ⦃ i==0 ⦄ → inspectZ (equality i 0 i==0) i≈n)
-  else (λ ⦃ i/=0 ⦄ → inspectS i/=0 i≈n)
+  if i == 0 then (λ ⦃ i==0 ⦄ → let0 (equality i 0 i==0) λ where
+    (refl) →
+      dsubst₂ {b = pos 0 as_} (λ n 0≈n → NatView (BN 0 n 0≈n))
+        (uniqAsNat (Z itsTrue) i≈n) (irrAs _ _)
+        $ Z
+  ) else λ ⦃ i/=0 ⦄ → let0 (isS i/=0 i≈n) λ where
+    (MkIsS {n'} predi≈n' refl) →
+      dsubst₂ (λ i i≈n → NatView (BN i (suc n') i≈n))
+        (succpred i) (irrAs _ _)
+        $ S (BN (pred i) n' predi≈n')
 {-# COMPILE AGDA2HS inspect #-}
 
 private

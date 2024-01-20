@@ -4,12 +4,18 @@ open import Agda.Builtin.Equality
 open import Haskell.Prim
 
 subst
-  : ∀ {ℓ ℓ′} {@0 a : Set ℓ}
-    (@0 f : @0 a → Set ℓ′)
-    {@0 x y : a}
+  : ∀ {@0 a : Set}
+    (@0 f : @0 a → Set)
+    {@0 x y}
   → @0 x ≡ y → f x → f y
 subst f refl x = x
 {-# COMPILE AGDA2HS subst transparent #-}
+
+dsubst₂ : ∀ {@0 a : Set} {@0 b : @0 a → Set} (@0 c : (@0 x : a) → @0 b x → Set)
+            {@0 x₁ x₂ y₁ y₂} (@0 p : x₁ ≡ x₂) → @0 subst b p y₁ ≡ y₂
+        → c x₁ y₁ → c x₂ y₂
+dsubst₂ C refl refl c = c
+{-# COMPILE AGDA2HS dsubst₂ transparent #-}
 
 schrodinger : ∀ {b} → IsTrue b → IsFalse b → a
 schrodinger itsTrue ()

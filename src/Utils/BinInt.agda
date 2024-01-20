@@ -41,24 +41,26 @@ o' (BI i b i≈b) {{ i/=0 }} =
         (subst (_as b) (sym (shiftRshiftL i)) i≈b))
 {-# COMPILE AGDA2HS o' inline #-}
 
--- o : BinInt → BinInt
--- o (BI i b i≈b) =
---   BI (shiftL i 1)
---      (if i == 0 then Z else O b)
---      (if i == 0 then (λ ⦃ i==0 ⦄ →
---        subst (shiftL i 1 as_) (sym (ifTrueEqThen _ i==0)) $
---          subst (_as Z)
---                (subst (λ i → i ≡ shiftL i 1)
---                       (sym (equality _ _ i==0))
---                       (sym (equality _ _ (trueIs (eq0ShiftL 0 itsTrue)))))
---                (Z {i = i} (isTrue i==0))
---      ) else λ ⦃ i/=0 ⦄ →
---        subst (shiftL i 1 as_) (sym (ifFalseEqElse _ i/=0)) $
---          O (testBitShiftL i)
---            (neq0ShiftL i (isFalse i/=0))
---            (subst (_as b) (sym (shiftRshiftL i)) i≈b)
---      )
--- {-# COMPILE AGDA2HS o inline #-}
+{-
+o : BinInt → BinInt
+o (BI i b i≈b) =
+  BI (shiftL i 1)
+     (if i == 0 then Z else O b)
+     (if i == 0 then (λ ⦃ i==0 ⦄ →
+       subst (shiftL i 1 as_) (sym (ifTrueEqThen _ i==0)) $
+         subst (_as Z)
+               (subst (λ i → i ≡ shiftL i 1)
+                      (sym (equality _ _ i==0))
+                      (sym (equality _ _ (trueIs (eq0ShiftL 0 itsTrue)))))
+               (Z {i = i} (isTrue i==0))
+     ) else λ ⦃ i/=0 ⦄ →
+       subst (shiftL i 1 as_) (sym (ifFalseEqElse _ i/=0)) $
+         O (testBitShiftL i)
+           (neq0ShiftL i (isFalse i/=0))
+           (subst (_as b) (sym (shiftRshiftL i)) i≈b)
+     )
+{-# COMPILE AGDA2HS o inline #-}
+-- -}
 
 
 data BinView : @0 BinInt → Set where
@@ -77,49 +79,36 @@ record @0 IsK (bi : BinInt) (K : Bin → Bin) : Set where
 @0 isI : (bi   : BinInt)
          (bit1 : IsTrue (testBit (int bi) 0))
        → IsK bi I
-isI (BI _ (Z  ) (Z z    )) t = schrodinger z (testBitneq0 t)
-isI (BI _ (O _) (O f _ _)) t = schrodinger t f
-isI (BI _ (I _) (I _ p  )) t = MkIsK p refl
+isI (BI _ (Z  ) (Z i==0    )) bit1 = schrodinger i==0 (testBitneq0 bit1)
+isI (BI _ (O _) (O bit0 _ _)) bit1 = schrodinger bit1 bit0
+isI (BI _ (I _) (I _ p     )) bit1 = MkIsK p refl
 
 @0 isO : (bi   : BinInt)
          (i/=0 : IsFalse (int bi == 0))
          (bit0 : IsFalse (testBit (int bi) 0))
        → IsK bi O
-isO (BI _ (Z  ) (Z x    )) i/=0 bit0 = schrodinger x i/=0
-isO (BI _ (I _) (I x _  )) i/=0 bit0 = schrodinger x bit0 
-isO (BI _ (O _) (O _ _ p)) i/=0 bit0 = MkIsK p refl
+isO (BI _ (Z  ) (Z i==0  )) i/=0 bit0 = schrodinger i==0 i/=0
+isO (BI _ (I _) (I bit1 _)) i/=0 bit0 = schrodinger bit1 bit0 
+isO (BI _ (O _) (O _ _ p )) i/=0 bit0 = MkIsK p refl
 
 view : ∀ bi → BinView bi
-view (BI i b i≈b) =
-  if i == 0 then (λ ⦃ i==0 ⦄ →
-    subst₂ (λ i b → (@0 i≈b : i as b) → BinView (BI i b i≈b))
-      (sym (equality _ _ i==0)) (uniqAs (Z (isTrue i==0)) i≈b)
-      (λ 0≈b → subst (λ 0≈b → BinView (BI 0 Z 0≈b))
-                 (irrAs (Z itsTrue) 0≈b)
-                 VZ)
-      i≈b
-  ) else λ ⦃ i/=0 ⦄ →
-    if testBit i 0 then (λ ⦃ bit ⦄ →
-      let0 (isI (BI i b i≈b) (isTrue bit)) λ is →
-        subst₂ (λ i b → (@0 i≈b : i as b) → BinView (BI i b i≈b))
-          (setBitshiftLshiftR (isTrue bit)) (IsK.beq is)
-          (λ i≈b → subst (λ i≈b → BinView (BI _ _ i≈b))
-              (irrAs (I (testBitsetBit _)
-                        (subst (_as _) (sym (shiftsetshift (shiftR i 1)))
-                               (IsK.a' is))) i≈b)
-              (VI (BI (shiftR i 1) (IsK.b' is) _)))
-          i≈b
-    ) else λ ⦃ nbit ⦄ →
-      let0 (isO (BI i b i≈b) (isFalse i/=0) (isFalse nbit)) λ is →
-        subst₂ (λ i b → (@0 i≈b : i as b) → BinView (BI i b i≈b))
-          (shiftLshiftR1 i (isFalse nbit)) (IsK.beq is)
-          (λ i≈b → subst (λ i≈b → BinView (BI _ _ i≈b))
-              (irrAs (O (testBitShiftL _)
-                        (neq0ShiftL _ (neq0ShiftR i (isFalse i/=0) (isFalse nbit)))
-                        (subst (_as _) (sym (shiftRshiftL (shiftR i 1)))
-                               (IsK.a' is))) i≈b)
-              (VO (BI (shiftR i 1) (IsK.b' is) _) ⦃ _ ⦄))
-          i≈b
+view (BI i b i≈b)
+  = if i == 0 then (λ ⦃ i==0 ⦄ → let0 (equality i 0 i==0) λ where
+    refl → dsubst₂ {b = 0 as_} (λ b i≈b → BinView (BI 0 b i≈b))
+             (uniqAs (Z (isTrue i==0)) i≈b) (irrAs _ _)
+             VZ
+  ) else λ ⦃ i/=0 ⦄ → if testBit i 0 then (λ ⦃ bit ⦄ →
+    let0 (isI (BI i b i≈b) (isTrue bit)) λ where
+      (MkIsK {b} i'≈b refl) →
+        dsubst₂ {b = _as I b} (λ i i≈Ib → BinView (BI i (I b) i≈Ib))
+          (setBitshiftLshiftR (isTrue bit)) (irrAs _ _)
+          (VI (BI (shiftR i 1) b i'≈b))
+  ) else λ ⦃ nbit ⦄ →
+    let0 (isO (BI i b i≈b) (isFalse i/=0) (isFalse nbit)) λ where
+      (MkIsK {b} i'≈b refl) →
+        dsubst₂ {b = _as O b} (λ i i≈Ob → BinView (BI i (O b) i≈Ob))
+          (shiftLshiftR1 i (isFalse nbit)) (irrAs _ _)
+          (VO (BI (shiftR i 1) b i'≈b) ⦃ neq0ShiftR i (isFalse i/=0) (isFalse nbit) ⦄)
 {-# COMPILE AGDA2HS view #-}
 
 postulate
