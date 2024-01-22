@@ -3,7 +3,8 @@ module Utils.Bin where
 open import Haskell.Prelude
 open import Haskell.Prim
 open import Haskell.Law.Eq using (equality; nequality)
-open import Haskell.Law.Equality using (sym; cong; cong₂)
+open import Haskell.Law.Equality
+  renaming (trans to infixl 5 _∙_)
 
 
 open import Haskell.Law.Num
@@ -13,54 +14,185 @@ open import Utils.Misc
 data Bin : Set where
   Z   : Bin
   O I : Bin → Bin
+{-# COMPILE AGDA2HS Bin #-}
 
-data _as_ (i : Integer) : Bin → Set where
-  Z : IsTrue (i == 0)
-    → i as Z
-  I : {b : Bin}
-    → IsTrue (testBit i 0)
-    → shiftR i 1 as b
-    → i          as I b
-  O : {b : Bin}
-    → IsFalse (testBit i 0)
-    → IsFalse (i == 0)
-    → shiftR i 1 as b
-    → i          as O b
+private
+  bsucc : Bin → Bin
+  bsucc Z     = I Z
+  bsucc (O b) = I b
+  bsucc (I b) = O (bsucc b)
 
-@0 uniqAs : {i : Integer} {x y : Bin} → i as x → i as y → x ≡ y
-uniqAs (Z _    ) (Z _    ) = refl
-uniqAs (I _ p  ) (I _ q  ) = cong I (uniqAs p q)
-uniqAs (O _ _ p) (O _ _ q) = cong O (uniqAs p q)
-uniqAs (Z z    ) (I t _  ) = schrodinger t (testBit0 z)
-uniqAs (Z t    ) (O _ f _) = schrodinger t f
-uniqAs (I t _  ) (Z z    ) = schrodinger t (testBit0 z)
-uniqAs (I t _  ) (O f _ _) = schrodinger t f
-uniqAs (O _ f _) (Z t    ) = schrodinger t f
-uniqAs (O f _ _) (I t _  ) = schrodinger t f
+  badd baddcarry : Bin → Bin → Bin
 
-@0 irrAs : {i : Integer} {b : Bin} (p q : i as b) → p ≡ q
-irrAs (Z t1     ) (Z t2     ) = cong Z (irrIsTrue t1 t2)
-irrAs (I t1 p   ) (I t2 q   ) = cong₂ I (irrIsTrue t1 t2) (irrAs p q)
-irrAs (O f1 z1 p) (O f2 z2 q) = cong₃ O (irrIsFalse f1 f2) (irrIsFalse z1 z2) (irrAs p q)
+  badd (Z  ) (y  ) = y
+  badd (x  ) (Z  ) = x
+  badd (O x) (O y) = O (badd x y)
+  badd (O x) (I y) = I (badd x y)
+  badd (I x) (O y) = I (badd x y)
+  badd (I x) (I y) = O (baddcarry x y)
 
+  baddcarry (Z  ) (y  ) = bsucc y
+  baddcarry (x  ) (Z  ) = bsucc x
+  baddcarry (O x) (O y) = I (badd x y)
+  baddcarry (O x) (I y) = O (baddcarry x y)
+  baddcarry (I x) (O y) = O (baddcarry x y)
+  baddcarry (I x) (I y) = I (baddcarry x y)
 
--- binary addition and whatnot
-------------------------------
+  badd-comm      : ∀ x y → badd x y ≡ badd y x
+  baddcarry-comm : ∀ x y → baddcarry x y ≡ baddcarry y x
 
-bsucc : Bin → Bin
-bsucc Z     = I Z
-bsucc (O b) = I b
-bsucc (I b) = O (bsucc b)
+  badd-comm (Z  ) (Z  ) = refl
+  badd-comm (Z  ) (O y) = refl
+  badd-comm (Z  ) (I y) = refl
+  badd-comm (O x) (Z  ) = refl
+  badd-comm (O x) (O y) = cong O (badd-comm x y)
+  badd-comm (O x) (I y) = cong I (badd-comm x y)
+  badd-comm (I x) (Z  ) = refl
+  badd-comm (I x) (O y) = cong I (badd-comm x y)
+  badd-comm (I x) (I y) = cong O (baddcarry-comm x y)
 
-badd baddcarry : Bin → Bin → Bin
+  baddcarry-comm (Z  ) (Z  ) = refl
+  baddcarry-comm (Z  ) (O y) = refl
+  baddcarry-comm (Z  ) (I y) = refl
+  baddcarry-comm (O x) (Z  ) = refl
+  baddcarry-comm (O x) (O y) = cong I (badd-comm x y)
+  baddcarry-comm (O x) (I y) = cong O (baddcarry-comm x y)
+  baddcarry-comm (I x) (Z  ) = refl
+  baddcarry-comm (I x) (O y) = cong O (baddcarry-comm x y)
+  baddcarry-comm (I x) (I y) = cong I (baddcarry-comm x y)
 
-badd (Z  ) (y  ) = y
-badd (x  ) (Z  ) = x
-badd (O x) (O y) = O (badd x y)
-badd (O x) (I y) = I (badd x y)
-badd (I x) (O y) = I (badd x y)
-badd (I x) (I y) = O (baddcarry x y)
+  baddcarry≈bsucc-badd : ∀ x y → baddcarry x y ≡ bsucc (badd x y)
+  baddcarry≈bsucc-badd (Z  ) (y  ) = refl
+  baddcarry≈bsucc-badd (O x) (Z  ) = refl
+  baddcarry≈bsucc-badd (O x) (O y) = refl
+  baddcarry≈bsucc-badd (O x) (I y) = cong O (baddcarry≈bsucc-badd x y)
+  baddcarry≈bsucc-badd (I x) (Z  ) = refl
+  baddcarry≈bsucc-badd (I x) (O y) = cong O (baddcarry≈bsucc-badd x y)
+  baddcarry≈bsucc-badd (I x) (I y) = refl
 
+  badd-bsucc : ∀ x y → badd (bsucc x) y ≡ bsucc (badd x y)
+  badd-bsucc (Z  ) (Z  ) = refl
+  badd-bsucc (Z  ) (O y) = refl
+  badd-bsucc (Z  ) (I y) = refl
+  badd-bsucc (O x) (Z  ) = refl
+  badd-bsucc (O x) (O y) = refl
+  badd-bsucc (O x) (I y) = cong O (baddcarry≈bsucc-badd x y)
+  badd-bsucc (I x) (Z  ) = refl
+  badd-bsucc (I x) (O y) = cong O (badd-bsucc x y)
+  badd-bsucc (I x) (I y) = cong I (badd-bsucc x y ∙ sym (baddcarry≈bsucc-badd x y))
+
+  badd-assoc     : ∀ x y z → badd x (badd y z) ≡ badd (badd x y) z
+  badd-baddcarry : ∀ x y z → badd x (baddcarry y z) ≡ badd (baddcarry x y) z
+  baddcarry-assoc : ∀ x y z → baddcarry x (baddcarry y z) ≡ baddcarry (baddcarry x y) z
+
+  x+⟨y+1+z⟩≡⟨x+y⟩+1+z : ∀ x y z → badd x (baddcarry y z) ≡ baddcarry (badd x y) z
+  x+⟨y+1+z⟩≡⟨x+y⟩+1+z x y z =
+    badd x (baddcarry y z)    ≡⟨ cong (badd x) (baddcarry≈bsucc-badd y z) ⟩
+    badd x (bsucc (badd y z)) ≡⟨ badd-comm x _ ⟩
+    badd (bsucc (badd y z)) x ≡⟨ badd-bsucc (badd y z) x ⟩
+    bsucc (badd (badd y z) x) ≡⟨ cong bsucc (badd-comm (badd y z) x) ⟩
+    bsucc (badd x (badd y z)) ≡⟨ cong bsucc (badd-assoc x y z) ⟩
+    bsucc (badd (badd x y) z) ≡˘⟨ baddcarry≈bsucc-badd (badd x y) z ⟩
+    baddcarry (badd x y) z    ∎
+
+  x+1+⟨y+z⟩≡⟨x+y⟩+1+z : ∀ x y z → baddcarry x (badd y z) ≡ baddcarry (badd x y) z
+  x+1+⟨y+z⟩≡⟨x+y⟩+1+z x y z =
+    baddcarry x (badd y z)    ≡⟨ baddcarry≈bsucc-badd x (badd y z) ⟩
+    bsucc (badd x (badd y z)) ≡⟨ cong bsucc (badd-assoc x y z) ⟩
+    bsucc (badd (badd x y) z) ≡˘⟨ baddcarry≈bsucc-badd (badd x y) z ⟩
+    baddcarry (badd x y) z    ∎
+
+  baddcarry-assoc x y z =
+    baddcarry x (baddcarry y z)       ≡⟨ cong (baddcarry x) (baddcarry≈bsucc-badd y z) ⟩
+    baddcarry x (bsucc (badd y z))    ≡⟨ baddcarry≈bsucc-badd x _ ⟩
+    bsucc (badd x (bsucc (badd y z))) ≡⟨ cong bsucc (badd-comm x _) ⟩
+    bsucc (badd (bsucc (badd y z)) x) ≡⟨ cong bsucc (badd-bsucc (badd y z) x) ⟩
+    bsucc (bsucc (badd (badd y z) x)) ≡⟨ cong (bsucc ∘ bsucc) (badd-comm (badd y z) x ∙ badd-assoc x y z) ⟩
+    bsucc (bsucc (badd (badd x y) z)) ≡˘⟨ cong bsucc (badd-bsucc (badd x y) z) ⟩
+    bsucc (badd (bsucc (badd x y)) z) ≡˘⟨ baddcarry≈bsucc-badd (bsucc (badd x y)) z ⟩
+    baddcarry (bsucc (badd x y)) z    ≡˘⟨ cong (λ n → baddcarry n z) (baddcarry≈bsucc-badd x y) ⟩
+    baddcarry (baddcarry x y) z       ∎
+
+  badd-baddcarry x y z = {!!}
+
+  badd-assoc (Z  ) (y  ) (z  ) = refl
+  badd-assoc (O x) (Z  ) (z  ) = refl
+  badd-assoc (O x) (O y) (Z  ) = refl
+  badd-assoc (O x) (O y) (O z) = cong O (badd-assoc x y z)
+  badd-assoc (O x) (O y) (I z) = cong I (badd-assoc x y z)
+  badd-assoc (O x) (I y) (Z  ) = refl
+  badd-assoc (O x) (I y) (O z) = cong I (badd-assoc x y z)
+  badd-assoc (O x) (I y) (I z) = cong O (x+⟨y+1+z⟩≡⟨x+y⟩+1+z x y z)
+  badd-assoc (I x) (Z  ) (z  ) = refl
+  badd-assoc (I x) (O y) (Z  ) = refl
+  badd-assoc (I x) (O y) (O z) = cong I (badd-assoc x y z)
+  badd-assoc (I x) (O y) (I z) = cong O (x+1+⟨y+z⟩≡⟨x+y⟩+1+z x y z)
+  badd-assoc (I x) (I y) (Z  ) = refl
+  badd-assoc (I x) (I y) (O z) = cong O {!!}
+  badd-assoc (I x) (I y) (I z) = cong I (badd-baddcarry x y z)
+{-
+
+  badd-baddcarry (Z  ) (Z  ) (Z  ) = refl
+  badd-baddcarry (Z  ) (Z  ) (O z) = refl
+  badd-baddcarry (Z  ) (Z  ) (I z) = refl
+  badd-baddcarry (Z  ) (O y) (Z  ) = refl
+  badd-baddcarry (Z  ) (O y) (O z) = refl
+  badd-baddcarry (Z  ) (O y) (I z) = refl
+  badd-baddcarry (Z  ) (I y) (Z  ) = refl
+  badd-baddcarry (Z  ) (I y) (O z) = cong O {!!}
+  badd-baddcarry (Z  ) (I y) (I z) = cong I {!!}
+  badd-baddcarry (O x) (Z  ) (Z  ) = cong I {!!}
+  badd-baddcarry (O x) (Z  ) (O z) = refl
+  badd-baddcarry (O x) (Z  ) (I z) = cong O {!!}
+  badd-baddcarry (O x) (O y) (Z  ) = refl
+  badd-baddcarry (O x) (O y) (O z) = cong I (badd-assoc x y z)
+  badd-baddcarry (O x) (O y) (I z) = cong O {!!}
+  badd-baddcarry (O x) (I y) (Z  ) = cong O {!!}
+  badd-baddcarry (O x) (I y) (O z) = cong O (badd-baddcarry x y z)
+  badd-baddcarry (O x) (I y) (I z) = cong I {!!}
+  badd-baddcarry (I x) (Z  ) (Z  ) = cong O {!!}
+  badd-baddcarry (I x) (Z  ) (O z) = cong O {!!}
+  badd-baddcarry (I x) (Z  ) (I z) = cong I {!!}
+  badd-baddcarry (I x) (O y) (Z  ) = refl
+  badd-baddcarry (I x) (O y) (O z) = cong O {!!}
+  badd-baddcarry (I x) (O y) (I z) = cong I (badd-baddcarry x y z)
+  badd-baddcarry (I x) (I y) (Z  ) = cong I {!!}
+  badd-baddcarry (I x) (I y) (O z) = cong I (badd-baddcarry x y z)
+  badd-baddcarry (I x) (I y) (I z) = cong O (baddcarry-assoc x y z)
+  -}
+
+{-
+  baddcarry-assoc (Z  ) (Z  ) (Z  ) = refl
+  baddcarry-assoc (Z  ) (Z  ) (O z) = refl
+  baddcarry-assoc (Z  ) (Z  ) (I z) = refl
+  baddcarry-assoc (Z  ) (O y) (Z  ) = refl
+  baddcarry-assoc (Z  ) (O y) (O z) = cong O (sym (baddcarry≈bsucc-badd y z))
+  baddcarry-assoc (Z  ) (O y) (I z) = refl
+  baddcarry-assoc (Z  ) (I y) (Z  ) = refl
+  baddcarry-assoc (Z  ) (I y) (O z) = cong I {!!}
+  baddcarry-assoc (Z  ) (I y) (I z) = cong O {!!}
+  baddcarry-assoc (O x) (Z  ) (Z  ) = cong O {!!}
+  baddcarry-assoc (O x) (Z  ) (O z) = refl
+  baddcarry-assoc (O x) (Z  ) (I z) = cong I {!!}
+  baddcarry-assoc (O x) (O y) (Z  ) = cong O (baddcarry≈bsucc-badd x y)
+  baddcarry-assoc (O x) (O y) (O z) = cong O {!!}
+  baddcarry-assoc (O x) (O y) (I z) = cong I {!!}
+  baddcarry-assoc (O x) (I y) (Z  ) = cong I {!!}
+  baddcarry-assoc (O x) (I y) (O z) = cong I (badd-baddcarry x y z)
+  baddcarry-assoc (O x) (I y) (I z) = cong O (baddcarry-assoc x y z)
+  baddcarry-assoc (I x) (Z  ) (Z  ) = cong I {!!}
+  baddcarry-assoc (I x) (Z  ) (O z) = cong I {!!}
+  baddcarry-assoc (I x) (Z  ) (I z) = cong O {!!}
+  baddcarry-assoc (I x) (O y) (Z  ) = refl
+  baddcarry-assoc (I x) (O y) (O z) = cong I {!!}
+  baddcarry-assoc (I x) (O y) (I z) = cong O (baddcarry-assoc x y z)
+  baddcarry-assoc (I x) (I y) (Z  ) = cong O {!!}
+  baddcarry-assoc (I x) (I y) (O z) = cong O (baddcarry-assoc x y z)
+  baddcarry-assoc (I x) (I y) (I z) = cong I (baddcarry-assoc x y z)
+
+-}
+
+{-
 data @0 Badd  : @0 Bin → @0 Bin → @0 Bin → Set
 data @0 BaddC : @0 Bin → @0 Bin → @0 Bin → Set
 
@@ -86,16 +218,8 @@ data BaddC where
 +Z Z     = refl
 +Z (O b) = refl
 +Z (I b) = refl
+  -}
 
-baddcarry (Z  ) (y  ) = bsucc y
-baddcarry (x  ) (Z  ) = bsucc x
-baddcarry (O x) (O y) = I (badd x y)
-baddcarry (O x) (I y) = O (baddcarry x y)
-baddcarry (I x) (O y) = O (baddcarry x y)
-baddcarry (I x) (I y) = I (baddcarry x y)
-
-postulate
-  @0 bsuccAs : ∀ {i b} → i as b → succ i as bsucc b
 
 -- bsuccAs {i = i} (Z p)
 --   rewrite equality i 0 (trueIs {b = i == 0} p)

@@ -3,13 +3,48 @@ module Utils.BinInt where
 
 open import Haskell.Prelude
 open import Haskell.Prim
-open import Haskell.Law.Equality using (sym; cong)
+open import Haskell.Law.Equality using (sym; cong; cong₂)
 open import Haskell.Law.Bool
 open import Haskell.Law.Eq using (equality)
 
 open import Data.Bits
 open import Utils.Bin 
 open import Utils.Misc
+
+
+data _as_ (i : Integer) : Bin → Set where
+  Z : IsTrue (i == 0)
+    → i as Z
+  I : {b : Bin}
+    → IsTrue (testBit i 0)
+    → shiftR i 1 as b
+    → i          as I b
+  O : {b : Bin}
+    → IsFalse (testBit i 0)
+    → IsFalse (i == 0)
+    → shiftR i 1 as b
+    → i          as O b
+
+
+@0 uniqAs : {i : Integer} {x y : Bin} → i as x → i as y → x ≡ y
+uniqAs (Z _    ) (Z _    ) = refl
+uniqAs (I _ p  ) (I _ q  ) = cong I (uniqAs p q)
+uniqAs (O _ _ p) (O _ _ q) = cong O (uniqAs p q)
+uniqAs (Z z    ) (I t _  ) = schrodinger t (testBit0 z)
+uniqAs (Z t    ) (O _ f _) = schrodinger t f
+uniqAs (I t _  ) (Z z    ) = schrodinger t (testBit0 z)
+uniqAs (I t _  ) (O f _ _) = schrodinger t f
+uniqAs (O _ f _) (Z t    ) = schrodinger t f
+uniqAs (O f _ _) (I t _  ) = schrodinger t f
+
+
+@0 irrAs : {i : Integer} {b : Bin} (p q : i as b) → p ≡ q
+irrAs (Z t1     ) (Z t2     ) = cong Z (irrIsTrue t1 t2)
+irrAs (I t1 p   ) (I t2 q   ) = cong₂ I (irrIsTrue t1 t2) (irrAs p q)
+irrAs (O f1 z1 p) (O f2 z2 q) = cong₃ O (irrIsFalse f1 f2) (irrIsFalse z1 z2) (irrAs p q)
+
+
+postulate @0 bsuccAs : ∀ {i b} → i as b → succ i as bsucc b
 
 
 record BinInt : Set where
@@ -26,12 +61,14 @@ z : BinInt
 z = BI 0 Z (Z itsTrue)
 {-# COMPILE AGDA2HS z inline #-}
 
+
 i : BinInt → BinInt
 i (BI i b i≈b) =
   BI (setBit (shiftL i 1) 0) (I b)
      (I (testBitsetBit (shiftL i 1))
         (subst (_as b) (sym (shiftsetshift i)) i≈b))
 {-# COMPILE AGDA2HS i inline #-}
+
 
 o' : (bi : BinInt) → @0 {{ IsFalse (int bi == 0) }} → BinInt
 o' (BI i b i≈b) {{ i/=0 }} =
@@ -40,6 +77,7 @@ o' (BI i b i≈b) {{ i/=0 }} =
         (neq0ShiftL i i/=0)
         (subst (_as b) (sym (shiftRshiftL i)) i≈b))
 {-# COMPILE AGDA2HS o' inline #-}
+
 
 {-
 o : BinInt → BinInt
