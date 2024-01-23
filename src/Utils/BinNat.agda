@@ -96,13 +96,13 @@ data NatView : @0 BinNat → Set where
 
 private
 
-  record @0 IsS (bn : BinNat) : Set where
+  record @0 IsS (i : Integer) (n : Nat) : Set where
     constructor MkIsS
     field {n'}     : Nat
-          predi≈n' : pred (int bn) as n'
-          sucn'    : suc n' ≡ nat bn
+          predi≈n' : pred i as n'
+          sucn'    : suc n' ≡ n
 
-  @0 isS : ∀ {i n} → (i == 0) ≡ False → (@0 i≈n : i as n) → IsS (BN i n i≈n)
+  @0 isS : ∀ {i n} → (i == 0) ≡ False → (@0 i≈n : i as n) → IsS i n
   isS i/=0 (Z i==0) = schrodinger i==0 (isFalse i/=0)
   isS _    (S _ p ) = MkIsS p refl
 
