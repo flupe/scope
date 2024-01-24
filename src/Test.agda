@@ -1,3 +1,4 @@
+{-# OPTIONS --prop #-}
 module Test where
 
 open import Haskell.Prelude
@@ -5,26 +6,139 @@ open import Haskell.Law.Eq
 open import Haskell.Law.Equality hiding (subst)
 open import Haskell.Law.Bool
 open import Haskell.Extra.Erase
-open import Utils.Misc renaming (subst to subst0)
+open import Utils.Misc
 
 private variable @0 n : Nat
-
 
 postulate
   pred>=→>  : (x y : Integer) → IsTrue (pred x >= y) → IsTrue (x > y)
   >→/=      : (x y : Integer) → IsTrue (x > y) → IsFalse (x == y)
   pred-succ : (x   : Integer) → pred (succ x) ≡ x
+  succ-pred : (x   : Integer) → succ (pred x) ≡ x
 
+data Squash (a : Set) : Prop where
+  [_] : @0 a → Squash a
+
+_as_ : Integer → Nat → Prop
+i as zero  = Squash ((i == 0) ≡ True) -- Squash (IsTrue (i == 0))
+i as suc n = pred i as n
+
+substProp : {@0 a : Set} (@0 b : @0 a → Prop) {x y : a} → x ≡ y → b x → b y
+substProp b refl z = z
+
+.succAs : ∀ i (@0 n) → {{ i as n }} → succ i as suc n
+succAs i n {{ p }} = substProp (_as n) (sym (pred-succ i)) p
+
+postulate
+  viewGeq0     : ∀ {i} n → i as n     → IsTrue (i >= 0)
+  viewSuccNeq0 : ∀ {i} n → i as suc n → IsFalse (i == 0)
+
+record IntNat : Set where
+  constructor IN
+  field
+    int        : Integer
+    @0 nat     : Nat
+    .{{ inv }} : int as nat
+open IntNat public
+{-# COMPILE AGDA2HS IntNat unboxed #-}
+
+@0 substAs : ∀ {i j n} → i as n → i ≡ j → j as n
+substAs p refl = p
+
+zIN : IntNat
+zIN = IN 0 0 {{ [ refl ] }}
+
+sIN : IntNat → IntNat
+sIN (IN i n) = IN (succ i) (suc n) {{ succAs i n }}
+
+data View : IntNat → Set where
+  VZ : ∀ i → (v : i as 0) → View (IN i 0 {{ v }})
+  VS : ∀ i → View (sIN i)
+
+data IsNull? : Nat → Bool → Set where
+  itsZ : IsNull? (zero ) True
+  itsS : ∀ (@0 n) → IsNull? (suc n) False
+
+@0 isNull? : ∀ {i} n b → .{{ i as n }} → {{ (i == 0) ≡ b }} → IsNull? n b
+isNull? {i} (zero ) (False) ⦃ p ⦄ ⦃ i/=0 ⦄ = {!!} -- schrodinger p (isFalse i/=0)
+isNull? {i} (suc n) (True ) ⦃ p ⦄ ⦃ i==0 ⦄ = {!!} -- schrodinger (isTrue i==0) (viewSuccNeq0 {i} {n} p)
+isNull? {i} (zero ) (True ) ⦃ p ⦄ ⦃ i==0 ⦄ = itsZ
+isNull? {i} (suc n) (False) ⦃ p ⦄ ⦃ i==0 ⦄ = itsS n
+
+inspect : ∀ i → View i
+inspect (IN i n {{ v }}) =
+  if i == 0 then (λ ⦃ i==0 ⦄ → let0 (isNull? {i} n True) λ where
+    itsZ → VZ i {!!}
+  ) else λ ⦃ i/=0 ⦄ → let0 (isNull? {i} n False) λ where
+    (itsS n) →
+      subst (λ i → . {{ v : i as suc n}} → View (IN i (suc n) {{ v }})) (succ-pred i)
+        (λ ⦃ v ⦄ → VS (IN (pred i) n ⦃ substProp (λ i → pred i as n) (succ-pred i) v ⦄))
+
+{-
+.succAs : ∀ i (@0 n) → {{ i as n }} → succ i as suc n
+succAs i n {{ p }} = subst (_as n) (sym (pred-succ i)) p
+
+postulate viewGeq0 : ∀ {i n} → i as n → IsTrue (i >= 0)
+-- viewGeq0 {i} {zero } (i==0 ) = isTrue (||-rightTrue (0 < i) (i == 0) (trueIs i==0))
+-- viewGeq0 {i} {suc n} (pri≈n) = isTrue (||-leftTrue  (0 < i) (i == 0) (trueIs (pred>=→> i 0 (viewGeq0 {i} {n} pri≈n))))
+
+postulate
+  viewSuccNeq0 : ∀ {i n} → i as suc n → IsFalse (i == 0)
+-- viewSuccNeq0 {i} {n} (pri≈n) = >→/= i 0 (pred>=→> i 0 (viewGeq0 {i} {n} pri≈n))
+
+record IntNat : Set where
+  constructor IN
+  field
+    int        : Integer
+    @0 nat     : Nat
+    .{{ inv }} : int as nat
+open IntNat public
+{-# COMPILE AGDA2HS IntNat unboxed #-}
+
+zIN : IntNat
+zIN = IN 0 0 {{ [ IsTrue.itsTrue ] }}
+
+sIN : IntNat → IntNat
+sIN (IN i n) = IN (succ i) (suc n) {{ succAs i n }}
+
+data View : IntNat → Set where
+  VZ : ∀ {@0 i n} (@0 @irr v : i as n) → View (IN i n {{ v }})
+  VS : ∀ i → View (sIN i)
+
+data IsNull? : Nat → Bool → Set where
+  itsZ : IsNull? (zero ) True
+  itsS : IsNull? (suc n) False
+
+@0 isNull? : ∀ {i} n b → .{{ i as n }} → {{ (i == 0) ≡ b }} → IsNull? n b
+isNull? {i} (zero ) (False) ⦃ p ⦄ ⦃ i/=0 ⦄ = {!!} -- schrodinger p (isFalse i/=0)
+isNull? {i} (suc n) (True ) ⦃ p ⦄ ⦃ i==0 ⦄ = {!!} -- schrodinger (isTrue i==0) (viewSuccNeq0 {i} {n} p)
+isNull? {i} (zero ) (True ) ⦃ p ⦄ ⦃ i==0 ⦄ = itsZ
+isNull? {i} (suc n) (False) ⦃ p ⦄ ⦃ i==0 ⦄ = itsS
+
+letIrr : ∀ {@0 a : Set} {@0 b : .a → Set} (@0 @irr x : a) → ((@0 @irr x : a) → b x) → b x
+letIrr x f = f x
+{-# COMPILE AGDA2HS letIrr transparent #-}
+
+@0 .rezz0 : @0 a → a
+rezz0 x = x
+
+inspect : ∀ i → View i
+inspect (IN i n) =
+  if i == 0 then (λ ⦃ i==0 ⦄ → let0 (isNull? {i} n True) λ where
+    itsZ → VZ [ (isTrue i==0) ]
+  ) else
+    {!!}
+
+{-
 
 -- view
 -------
 
-data NatView (@0 i : Integer) : @0 Nat → Set where
+NatView (@0 i : Integer) : @0 Nat → Set where
   Zero : @0 {{ IsTrue (i == 0)    }} → NatView i 0
   Succ : @0 {{ NatView (pred i) n }} → NatView i (suc n)
 
 {-# COMPILE AGDA2HS NatView #-}
-
 
 @0 succView : ∀ {i n} → NatView i n → NatView (succ i) (suc n)
 succView {i} {n = n} p = Succ {{ subst0 (λ i → NatView i n) (sym (pred-succ i)) p }}
@@ -35,6 +149,10 @@ viewGeq0 {i} (Succ {{ pri≈n }}) = isTrue (||-leftTrue  (0 < i) (i == 0) (trueI
 
 @0 viewSuccNeq0 : ∀ {i n} → NatView i (suc n) → IsFalse (i == 0)
 viewSuccNeq0 {i} (Succ {{ pri≈n }}) = >→/= i 0 (pred>=→> i 0 (viewGeq0 pri≈n))
+
+@0 irrView : ∀ {i n} (p q : NatView i n) → p ≡ q
+irrView (Zero {{ p }}) (Zero {{ q }}) = cong (λ p → Zero ⦃ p ⦄) (irrIsTrue p q)
+irrView (Succ {{ p }}) (Succ {{ q }}) = cong (λ p → Succ ⦃ p ⦄) (irrView p q)
 
 
 -- inversion lemmas
@@ -82,143 +200,65 @@ mul x y =
 
 {-# COMPILE AGDA2HS mul #-}
 
-{-
-inspect : ∀ i {@0 n} → @0 {{ i as n }} → NatView i n
-inspect i {n} {{ i≈n }} =
-  if i == 0
-  then (λ {{ i==0 }} → let0 (equality i 0 i==0) λ where
-    refl → subst0 (NatView 0) (uniqAsNat (as0 IsTrue.itsTrue) i≈n) Zero)
-  else (λ {{ i/=0 }} → let0 (isS i/=0) λ where
-    (pri≈n' ⟨ refl ⟩) → Succ {{ pri≈n' }})
-
-data _as_ : Integer → Nat → Set where
-  as0 : ∀ {i  } → IsTrue  (i == 0) → i as 0
-  asS : ∀ {i n} → pred i as n      → i as (suc n)
-
-
-@0 succAs : ∀ {i n} → i as n → succ i as (suc n)
-succAs {i} {n = n} p = asS (subst0 (_as n) (sym (pred-succ i)) p)
-
-@0 asGeq0 : ∀ {i n} → i as n → IsTrue (i >= 0)
-asGeq0 {i} (as0 i==0 ) = isTrue (||-rightTrue (0 < i) (i == 0) (trueIs i==0))
-asGeq0 {i} (asS pri≈n) = isTrue (||-leftTrue  (0 < i) (i == 0) (trueIs (pred>=→> i 0 (asGeq0 pri≈n))))
-
-@0 asSuccNeq0 : ∀ {i n} → i as (suc n) → IsFalse (i == 0)
-asSuccNeq0 {i} (asS pri≈n) = >→/= i 0 (pred>=→> i 0 (asGeq0 pri≈n))
-
-@0 uniqAsNat : ∀ {i} {n m} → i as n → i as m → n ≡ m
-uniqAsNat (as0 _    ) (as0 _    ) = refl
-uniqAsNat (as0 i==0 ) p@(asS _  ) = schrodinger i==0 (asSuccNeq0 p)
-uniqAsNat p@(asS _  ) (as0 i==0 ) = schrodinger i==0 (asSuccNeq0 p)
-uniqAsNat (asS pri≈n) (asS pri≈m) = cong suc (uniqAsNat pri≈n pri≈m)
-
-
--- view
--------
-
-
-data NatView (@0 i : Integer) : @0 Nat → Set where
-  Zero :            @0 {{ IsTrue (i == 0) }} → NatView i 0
-  Succ : ∀ {@0 n} → @0 {{ pred i as n     }} → NatView i (suc n)
-
-{-# COMPILE AGDA2HS NatView #-}
-
-
-record IsS (i : Integer) (n : Nat) : Set where
-  constructor _⟨_⟩
-  field {n'}   : Nat
-        pri≈n' : pred i as n'
-        sucn'  : suc n' ≡ n
-
-@0 isS : ∀ {i n} → {{ i as n }} → (i == 0) ≡ False → IsS i n
-isS {{ as0 i==0 }} i/=0 = schrodinger i==0 (isFalse i/=0)
-isS {{ asS p    }} i/=0 = p ⟨ refl ⟩
-
-
-inspect : ∀ i {@0 n} → @0 {{ i as n }} → NatView i n
-inspect i {n} {{ i≈n }} =
-  if i == 0
-  then (λ {{ i==0 }} → let0 (equality i 0 i==0) λ where
-    refl → subst0 (NatView 0) (uniqAsNat (as0 IsTrue.itsTrue) i≈n) Zero)
-  else (λ {{ i/=0 }} → let0 (isS i/=0) λ where
-    (pri≈n' ⟨ refl ⟩) → Succ {{ pri≈n' }})
-
-{-# COMPILE AGDA2HS inspect #-}
-
-
--- example
-----------
-
-mul : ∀ x {@0 n} → @0 {{ x as n }} → Integer → Integer
-mul x y =
-  case inspect x of λ where
-    Zero → 0
-    Succ → y + mul (pred x) y
-
-{-# COMPILE AGDA2HS mul #-}
-
-
--- same, but trying to inline inspect
-
-inspect' : ∀ i {@0 n} {@0 a : Set} → @0 {{ i as n }} → (NatView i n → a) → a
-inspect' i {n} {{ i≈n }} f =
-  if i == 0
-  then (λ {{ i==0 }} → let0 (equality i 0 i==0) λ where
-    refl → f (subst0 (NatView 0) (uniqAsNat (as0 IsTrue.itsTrue) i≈n) Zero))
-  else (λ {{ i/=0 }} → let0 (isS i/=0) λ where (pri≈n' ⟨ refl ⟩) → (f (Succ {{ pri≈n' }})))
-
-{-# COMPILE AGDA2HS inspect' inline #-}
-
-double : ∀ x {@0 n} → @0 {{ x as n }} → Integer
+double : ∀ x {@0 n} → @0 {{ NatView x n }} → Integer
 double x =
-  inspect' x λ where
-    Zero → 0
-    Succ → succ (succ (double (pred x)))
+  case inspect x of λ where
+    Z → 0
+    S → 2 + double (pred x)
 
 {-# COMPILE AGDA2HS double #-}
 
------------------------------------------------------------------
 
--- IntNat
----------
+-- packing everything together
+------------------------------
 
 record IntNat : Set where
   constructor IN
   field
     int    : Integer
     @0 nat : Nat
-    @0 inv : int as nat
+    @0 inv : NatView int nat
 open IntNat public
 
 {-# COMPILE AGDA2HS IntNat unboxed #-}
 
-zeroIN : IntNat
-zeroIN = IN 0 0 (as0 IsTrue.itsTrue)
+zeroI : IntNat
+zeroI = IN 0 0 Zero
 
-{-# COMPILE AGDA2HS zeroIN inline #-}
+{-# COMPILE AGDA2HS zeroI inline #-}
 
-succIN : IntNat → IntNat
-succIN i = IN (succ (int i)) (suc (nat i)) (succAs (inv i))
+succI : IntNat → IntNat
+succI i = IN (succ (int i)) (suc (nat i)) (succView (inv i))
 
-{-# COMPILE AGDA2HS succIN inline #-}
+{-# COMPILE AGDA2HS succI inline #-}
 
-predIN : ∀ (i : IntNat) {@0 n} → @0 {{ pred (int i) as n }} → IntNat
-predIN i {n} {{ pri≈n }} = IN (pred (int i)) n pri≈n
+data View : @0 IntNat → Set where
+  ZeroI : View zeroI
+  SuccI : ∀ i → View (succI i)
 
-{-# COMPILE AGDA2HS predIN inline #-}
+{-# COMPILE AGDA2HS View #-}
 
-inspectIN : (n : IntNat) → NatView (int n) (nat n)
-inspectIN n = inspect (int n) {{ inv n }}
+inspectI : ∀ i → View i
+inspectI (IN i n v) = case (inspect i {{ v }}) of λ where
+  (rezz (Zero {{ i==0 }})) →
+    dsubst₂ {b = λ i → NatView i 0} (λ i v → View (IN i 0 v))
+      (sym (equality i 0 (trueIs i==0))) (irrView _ _)
+      ZeroI
+  (rezz (Succ {{ v }})) →
+    dsubst₂ {b = λ i → NatView i (suc _)} (λ i v → View (IN i _ v))
+      (succ-pred i) (irrView _ _)
+      (SuccI (IN (pred i) _ v))
 
-{-# COMPILE AGDA2HS inspectIN inline #-}
+{-# COMPILE AGDA2HS inspectI #-}
 
--- {-# TERMINATING #-}
--- doubleIN : IntNat → IntNat
--- doubleIN x =
---   case inspectIN x of λ where
---     Zero → zeroIN
---     Succ → succIN (succIN (doubleIN (predIN x)))
--- 
--- {-# COMPILE AGDA2HS doubleIN #-}
+doubleI : IntNat → IntNat
+doubleI i =
+  case inspectI i of λ where
+    ZeroI     → zeroI
+    (SuccI i) → succI (succI (doubleI i))
+
+{-# COMPILE AGDA2HS doubleI #-}
+
+-}
 
 -}

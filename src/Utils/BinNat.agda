@@ -120,6 +120,14 @@ inspect (BN i n i≈n) =
         $ S (BN (pred i) n' predi≈n')
 {-# COMPILE AGDA2HS inspect #-}
 
+double : BinNat → BinNat
+double i =
+  case inspect i of λ where
+    Z     → z
+    (S i) → s (s (double i))
+
+{-# COMPILE AGDA2HS double #-}
+
 private
   addAs : ∀ {i j} {n m} → i as n → j as m → (i + j) as (n + m)
   addAs {i = i} {j} {m = m} (Z i==0) q

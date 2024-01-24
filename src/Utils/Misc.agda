@@ -23,7 +23,7 @@ schrodinger itsTrue ()
 isTrue : ∀ {b} → b ≡ True → IsTrue b
 isTrue refl = IsTrue.itsTrue
 
-@0 isFalse : ∀ {b} → b ≡ False → IsFalse b
+isFalse : ∀ {b} → b ≡ False → IsFalse b
 isFalse refl = IsFalse.itsFalse
 
 irrIsTrue : ∀ {b} (p q : IsTrue b) → p ≡ q

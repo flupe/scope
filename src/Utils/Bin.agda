@@ -12,9 +12,52 @@ open import Data.Bits
 open import Utils.Misc
 
 data Bin : Set where
-  Z   : Bin
-  O I : Bin → Bin
+  Zero     : Bin
+  Odd Even : Bin → Bin
 {-# COMPILE AGDA2HS Bin #-}
+
+bsucc : Bin → Bin
+bsucc Zero     = Odd Zero
+bsucc (Odd b)  = Even b
+bsucc (Even b) = Odd (bsucc b)
+
+bdouble : Bin → Bin
+bdouble Zero     = Zero
+bdouble (Odd x)  = Even (bdouble x)
+bdouble (Even x) = Even (Odd x)
+
+bpred : Bin → Bin
+bpred Zero     = Zero
+bpred (Odd x)  = bdouble x
+bpred (Even x) = Odd x
+
+bdouble-bsucc : ∀ b → bdouble (bsucc b) ≡ Even b
+bdouble-bsucc Zero     = refl
+bdouble-bsucc (Odd b)  = refl
+bdouble-bsucc (Even b) = cong Even (bdouble-bsucc b)
+
+bpred-bsucc : ∀ b → bpred (bsucc b) ≡ b
+bpred-bsucc Zero = refl
+bpred-bsucc (Odd b) = refl
+bpred-bsucc (Even b) = bdouble-bsucc b
+
+badd  : (x y : Bin) → Bin
+baddc : (x y : Bin) → Bin
+badd (Zero  ) (y     ) = y
+badd (x     ) (Zero  ) = x
+badd (Odd  x) (Odd  y) = Even (baddc x y)
+badd (Odd  x) (Even y) = Odd  (baddc x y)
+badd (Even x) (Odd  y) = Odd  (baddc x y)
+badd (Even x) (Even y) = Even (baddc x y)
+
+baddc (Zero  ) (y     ) = bsucc y
+baddc (     x) (Zero  ) = bsucc x
+baddc (Odd  x) (Odd  y) = Odd (baddc x y)
+baddc (Odd  x) (Even y) = {!!}
+baddc (Even x) (Odd  y) = {!!}
+baddc (Even x) (Even y) = {!!}
+
+{-
 
 private
   bsucc : Bin → Bin
@@ -247,5 +290,7 @@ baddAs (I tstx1 p) (O tsty0 y/=0 q) =
 baddAs (O x x₁ p) (I x₂ q   ) = {!!}
 baddAs (O x x₁ p) (O x₂ x₃ q) = {!!}
 baddAs (I x p   ) (I x₁ q   ) = {!!}
+
+-}
 
 -}
