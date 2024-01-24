@@ -49,6 +49,6 @@ subst₂ : {@0 a b : Set} (@0 p : @0 a → @0 b → Set) {@0 x y : a} {@0 z w : 
 subst₂ p refl refl x = x
 {-# COMPILE AGDA2HS subst₂ transparent #-}
 
-let0 : {@0 a b : Set} (@0 x : a) (f : @0 a → b) → b
+let0 : {@0 a b : Set} (@0 x : a) (f : (@0 y : a) → @0 ⦃ y ≡ x ⦄ → b) → b
 let0 x f = f x
 {-# COMPILE AGDA2HS let0 transparent #-}

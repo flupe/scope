@@ -4,13 +4,92 @@ open import Haskell.Prelude
 open import Haskell.Law.Eq
 open import Haskell.Law.Equality hiding (subst)
 open import Haskell.Law.Bool
+open import Haskell.Extra.Erase
 open import Utils.Misc renaming (subst to subst0)
+
+private variable @0 n : Nat
+
 
 postulate
   pred>=→>  : (x y : Integer) → IsTrue (pred x >= y) → IsTrue (x > y)
   >→/=      : (x y : Integer) → IsTrue (x > y) → IsFalse (x == y)
   pred-succ : (x   : Integer) → pred (succ x) ≡ x
 
+
+-- view
+-------
+
+data NatView (@0 i : Integer) : @0 Nat → Set where
+  Zero : @0 {{ IsTrue (i == 0)    }} → NatView i 0
+  Succ : @0 {{ NatView (pred i) n }} → NatView i (suc n)
+
+{-# COMPILE AGDA2HS NatView #-}
+
+
+@0 succView : ∀ {i n} → NatView i n → NatView (succ i) (suc n)
+succView {i} {n = n} p = Succ {{ subst0 (λ i → NatView i n) (sym (pred-succ i)) p }}
+
+@0 viewGeq0 : ∀ {i n} → NatView i n → IsTrue (i >= 0)
+viewGeq0 {i} (Zero {{ i==0  }}) = isTrue (||-rightTrue (0 < i) (i == 0) (trueIs i==0))
+viewGeq0 {i} (Succ {{ pri≈n }}) = isTrue (||-leftTrue  (0 < i) (i == 0) (trueIs (pred>=→> i 0 (viewGeq0 pri≈n))))
+
+@0 viewSuccNeq0 : ∀ {i n} → NatView i (suc n) → IsFalse (i == 0)
+viewSuccNeq0 {i} (Succ {{ pri≈n }}) = >→/= i 0 (pred>=→> i 0 (viewGeq0 pri≈n))
+
+
+-- inversion lemmas
+-------------------
+
+data IsZ : Nat → Set where itsZero : IsZ zero
+data IsS : Nat → Set where itsSuc  : IsS (suc n)
+
+@0 isZ : ∀ i {n} → {{ NatView i n }} → {{ (i == 0) ≡ True }} → IsZ n
+isZ i   {{ Zero }}            = itsZero
+isZ i p@{{ Succ }} {{ i==0 }} = schrodinger (isTrue i==0) (viewSuccNeq0 p)
+
+@0 isS : ∀ i {n} → {{ NatView i n }} → {{ (i == 0) ≡ False }} → IsS n
+isS i {{ Zero {{ i==0 }} }} {{ i/=0 }} = schrodinger i==0 (isFalse i/=0)
+isS i {{ Succ            }}            = itsSuc
+
+
+-- inspection i.e "resurrecting the view"
+-----------------------------------------
+
+inspect : ∀ i → {{ @0 v : NatView i n }} → Rezz _ v
+inspect i {{ v }} =
+  if i == 0
+  then (let0 (isZ i) λ where
+    itsZero → let0 v λ where
+      Zero ⦃ p ⦄ → Rezzed Zero p)
+  else (let0 (isS i) λ where
+    itsSuc → let0 v λ where
+      Succ ⦃ p ⦄ → Rezzed Succ p)
+
+{-# COMPILE AGDA2HS inspect #-}
+
+pattern Z = rezz Zero
+pattern S = rezz Succ
+
+
+-- demo
+-------
+
+mul : ∀ x {@0 n} → @0 {{ NatView x n }} → Integer → Integer
+mul x y =
+  case inspect x of λ where
+    Z → 0
+    S → y + mul (pred x) y
+
+{-# COMPILE AGDA2HS mul #-}
+
+{-
+inspect : ∀ i {@0 n} → @0 {{ i as n }} → NatView i n
+inspect i {n} {{ i≈n }} =
+  if i == 0
+  then (λ {{ i==0 }} → let0 (equality i 0 i==0) λ where
+    refl → subst0 (NatView 0) (uniqAsNat (as0 IsTrue.itsTrue) i≈n) Zero)
+  else (λ {{ i/=0 }} → let0 (isS i/=0) λ where
+    (pri≈n' ⟨ refl ⟩) → Succ {{ pri≈n' }})
 
 data _as_ : Integer → Nat → Set where
   as0 : ∀ {i  } → IsTrue  (i == 0) → i as 0
@@ -141,3 +220,5 @@ inspectIN n = inspect (int n) {{ inv n }}
 --     Succ → succIN (succIN (doubleIN (predIN x)))
 -- 
 -- {-# COMPILE AGDA2HS doubleIN #-}
+
+-}
